@@ -1,0 +1,38 @@
+# Entornos y secretos
+.env
+.env.local
+.env.prod
+.env.*.local
+*.pem
+*.key
+nginx/certs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+dist/
+frontend/dist/
+.vite/
+*.tsbuildinfo
+
+# Docker
+*.log
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Datos y evidencias subidas en local
+backend/storage/
+backups/

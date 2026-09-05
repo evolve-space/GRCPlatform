@@ -1,0 +1,115 @@
+# Configuración de PRODUCCIÓN. Archivo independiente y autocontenido (no un
+# overlay de docker-compose.yml) para no arriesgar romper el entorno de
+# desarrollo local con una fusión de configuraciones — ver docs/DEPLOYMENT.md.
+#
+# Diferencias clave respecto a docker-compose.yml (desarrollo):
+#   - Sin bind mounts de código fuente (la imagen ya contiene el código).
+#   - PostgreSQL, backend y MCP NO publican ningún puerto al host: solo son
+#     alcanzables dentro de la red interna de Docker.
+#   - Un único punto de entrada público: el servicio "nginx" (80/443),
+#     que sirve el frontend ya compilado y hace de reverse proxy hacia el
+#     backend.
+#   - Variables sin valor por defecto inseguro: deben definirse en un
+#     archivo .env real (ver .env.prod.example), nunca commitearse.
+#   - Nombre de proyecto ("name:") y de contenedores propios, distintos de
+#     los de docker-compose.yml (desarrollo) a propósito: lanzar este
+#     archivo en la misma máquina/directorio que el stack de desarrollo NO
+#     debe poder sustituir sus contenedores por colisión de nombre (ver
+#     incidencia documentada en el informe de la Fase 10 — ocurrió durante
+#     las pruebas de este mismo archivo, sin pérdida de datos porque el
+#     volumen de Postgres se reutilizó, pero sustituyó contenedores de
+#     desarrollo en marcha). En un despliegue real, además, este archivo se
+#     ejecuta en un servidor dedicado, nunca junto al entorno de desarrollo.
+#
+# Uso:
+#   cp .env.prod.example .env.prod
+#   # editar .env.prod con valores reales
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+name: grcplatform-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Sin "ports": solo accesible desde otros contenedores de esta red.
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ENVIRONMENT: production
+      CORS_ORIGINS: https://${DOMAIN}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      EVIDENCE_STORAGE_PATH: storage/evidence
+      MAX_EVIDENCE_FILE_SIZE_MB: ${MAX_EVIDENCE_FILE_SIZE_MB:-20}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - evidence_storage:/app/storage/evidence
+    # Sin "ports": solo accesible desde nginx (mismo network de Docker).
+
+  mcp:
+    build: ./mcp
+    restart: unless-stopped
+    environment:
+      GRC_API_BASE_URL: http://backend:8000
+      GRC_MCP_TOKEN: ${GRC_MCP_TOKEN}
+      MCP_TRANSPORT: streamable-http
+      MCP_HTTP_PORT: 8001
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8001), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Sin "ports" por defecto: el servidor MCP es interno. Si una
+    # integración externa necesita alcanzarlo directamente, exponerlo de
+    # forma explícita y documentada (ver docs/DEPLOYMENT.md), nunca por
+    # comodidad.
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - certbot_webroot:/var/www/certbot:ro
+
+volumes:
+  postgres_data:
+  evidence_storage:
+  certbot_webroot:
