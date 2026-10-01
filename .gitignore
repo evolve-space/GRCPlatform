@@ -33,6 +33,12 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# Herramientas de desarrollo asistido (estado local de sesión, no del proyecto)
+.claude/
+
 # Datos y evidencias subidas en local
 backend/storage/
 backups/
+
+# Informes de fase internos (no destinados a publicarse)
+PHASE_GITHUB_READINESS_REPORT.md

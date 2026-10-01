@@ -42,6 +42,54 @@ demuestra diseño de producto GRC y arquitectura de software de forma
 conjunta: no solo qué debe hacer una plataforma de este tipo, sino cómo
 construirla con garantías reales de seguridad y aislamiento multi-tenant.
 
+## Stack tecnológico
+
+| Capa | Tecnologías |
+|---|---|
+| **Backend** | Python 3.12 · FastAPI 0.115 · SQLAlchemy 2.x · Alembic · Pydantic v2 · PyJWT · bcrypt |
+| **Frontend** | React 18 · TypeScript 5.7 · Vite · Tailwind CSS · React Router · Recharts · Axios |
+| **Base de datos** | PostgreSQL 16 |
+| **MCP** | SDK oficial `mcp` (Python) · httpx como cliente HTTP puro hacia la API REST |
+| **Infraestructura** | Docker · Docker Compose · Nginx (reverse proxy + HTTPS en producción) · GitHub Actions (CI) |
+| **Calidad** | pytest · Ruff · mypy · ESLint |
+
+Todas las versiones son las realmente fijadas en `backend/requirements.txt`,
+`frontend/package.json` y `mcp/requirements.txt` — sin añadir ninguna
+tecnología que no esté en uso.
+
+## Estructura del proyecto
+
+```text
+GRCPlatform/
+├── backend/                  API REST (FastAPI)
+│   ├── app/
+│   │   ├── api/                 Routers y dependencias (auth, RBAC, scopes)
+│   │   ├── core/                  Configuración, seguridad, rate limiting, Compliance Score
+│   │   ├── db/                     Seed de datos de demostración
+│   │   ├── models/                 Modelos SQLAlchemy
+│   │   └── schemas/                Esquemas Pydantic (request/response)
+│   ├── alembic/                 Migraciones de base de datos
+│   └── tests/                    365 tests (pytest)
+├── frontend/                 Aplicación web (React + TypeScript + Vite + Tailwind)
+│   └── src/
+│       ├── components/           Layout, gráficos, tarjetas del dashboard
+│       ├── context/                Autenticación
+│       ├── lib/                     Cliente API, tipos, etiquetas en español
+│       └── pages/                    Pantallas de la aplicación
+├── mcp/                      Servidor MCP (SDK oficial `mcp`)
+│   ├── tools/                   14 herramientas (una por recurso GRC)
+│   ├── schemas/                  Tipos que reflejan los enums de la API
+│   └── tests/                     15 tests (unitarios + prueba arquitectónica)
+├── nginx/                    Imagen de producción (build del frontend + reverse proxy)
+├── scripts/                  backup.sh / restore.sh
+├── docs/                     Documentación técnica y de producto
+├── .github/workflows/         CI (tests, lint, mypy, build)
+├── docker-compose.yml         Orquestación de desarrollo
+├── docker-compose.prod.yml    Orquestación de producción (Nginx + HTTPS)
+├── .env.example / .env.prod.example
+└── README.md
+```
+
 ## Ciclo GRC
 
 ```
