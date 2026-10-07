@@ -10,7 +10,7 @@
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backend tests](https://img.shields.io/badge/backend%20tests-365%20passing-brightgreen)](backend/tests)
 [![MCP tests](https://img.shields.io/badge/MCP%20tests-15%20passing-brightgreen)](mcp/tests)
-[![CI](https://img.shields.io/badge/CI-preparado%20%7C%20no%20ejecutado%20a%C3%BAn-lightgrey)](.github/workflows/ci.yml)
+[![CI](https://github.com/evolve-space/GRCPlatform/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/evolve-space/GRCPlatform/actions)
 
 **Plataforma GRC (Gobierno, Riesgo y Cumplimiento) self-hosted**, con API
 REST, RBAC multi-tenant, y una integración MCP real para consultar y operar
@@ -238,8 +238,6 @@ infraestructura pública real. No se presenta como "100% seguro" ni como
   documentado y probado de extremo a extremo).
 - HTTPS verificado funcionalmente con un certificado de prueba; pendiente
   de validar con un dominio público y Let's Encrypt real.
-- El pipeline de CI/CD está escrito y cada paso verificado manualmente,
-  pero no se ha ejecutado todavía en GitHub Actions real.
 
 ## Compliance Score
 
@@ -262,6 +260,13 @@ conocidos).
 **No es una certificación.** El Compliance Score es un indicador interno
 de cobertura/madurez GRC — nunca se presenta como una certificación ISO
 27001 ni como una declaración legal de cumplimiento.
+
+## Demostración
+
+Vídeo de demostración de la plataforma (recorrido por la aplicación y por
+la integración MCP):
+
+[▶ Ver la demostración en YouTube](https://www.youtube.com/watch?v=PP9vM9bADZI)
 
 ## Datos de demostración
 
@@ -327,6 +332,45 @@ Internet
 
 Guía completa (servidor, SSH, firewall, TLS, migraciones, actualización,
 rollback) en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+### Despliegue local con Cloudflare Tunnel
+
+Para enseñar la configuración de producción desde un portátil (p. ej. en
+una demostración) sin un servidor ni un dominio propios, se puede levantar
+`docker-compose.prod.yml` en local y publicarlo temporalmente con un
+Cloudflare Quick Tunnel:
+
+1. Crea `.env.prod` a partir de `.env.prod.example` con `DOMAIN=localhost`
+   y valores aleatorios propios para `SECRET_KEY` y `POSTGRES_PASSWORD`.
+2. Genera un certificado autofirmado solo para el origen local:
+
+   ```bash
+   mkdir -p nginx/certs
+   openssl req -x509 -nodes -newkey rsa:2048 -days 30 -subj "/CN=localhost" \
+     -keyout nginx/certs/privkey.pem -out nginx/certs/fullchain.pem
+   ```
+
+3. Levanta el stack de producción y aplica las migraciones:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+   docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
+   ```
+
+4. Abre el túnel hacia Nginx (`--no-tls-verify` solo porque el origen usa el
+   certificado autofirmado; Cloudflare sirve TLS válido al público):
+
+   ```bash
+   cloudflared tunnel --url https://localhost --no-tls-verify
+   ```
+
+**Solo se expone Nginx** (puerto 443 local): PostgreSQL, backend y servidor
+MCP siguen siendo servicios internos de la red de Docker y no son
+alcanzables a través del túnel; Swagger (`/docs`) tampoco se proxifica.
+La URL `*.trycloudflare.com` es efímera y está pensada solo para demos.
+Si cargas los datos de demostración (`python -m app.db.seed`), cambia antes
+sus contraseñas, que son públicas, y no dejes el túnel abierto sin
+supervisión. `.env.prod` y `nginx/certs/` están excluidos de git.
 
 ### Backups
 
